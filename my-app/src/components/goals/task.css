@@ -1,0 +1,126 @@
+.task-viewer {
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  margin-left: 20px;
+  width: 450px;
+  min-height: 400px;
+}
+
+.task-viewer h2 {
+  color: #343a40;
+  font-size: 1.4rem;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.task-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.task-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 15px;
+  margin-bottom: 10px;
+  background-color: white;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.task-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.task-text {
+  flex-grow: 1;
+  font-size: 1rem;
+  color: #495057;
+}
+
+.task-item.completed .task-text {
+  color: #868e96;
+  text-decoration: line-through;
+}
+
+.task-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: 10px;
+}
+
+.complete-btn, .delete-btn {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.complete-btn {
+  background-color: #28a745;
+  color: white;
+}
+
+.complete-btn:hover {
+  background-color: #218838;
+}
+
+.delete-btn {
+  background-color: #dc3545;
+  color: white;
+}
+
+.delete-btn:hover:not(.disabled) {
+  background-color: #c82333;
+}
+
+.delete-btn.disabled, .complete-btn:disabled {
+  background-color: #e0e0e0;
+  color: #a0a0a0;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.overdue-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 6px;
+  background-color: #fff3cd;
+  color: #856404;
+  font-size: 0.7rem;
+  border-radius: 10px;
+  font-weight: bold;
+}
+
+.task-viewer > p {
+  color: #6c757d;
+  font-style: italic;
+  text-align: center;
+  margin-top: 20px;
+}
+
+
+.task-viewer.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+}
+
+
+@media (max-width: 768px) {
+  .task-viewer {
+    width: 100%;
+    margin-left: 0;
+    margin-top: 20px;
+  }
+}

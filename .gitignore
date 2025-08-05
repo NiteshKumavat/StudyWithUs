@@ -1,0 +1,17 @@
+# === React Frontend ===
+my-app/node_modules/
+my-app/build/
+my-app/.env
+my-app/.DS_Store
+
+# === Python Backend ===
+Backend/__pycache__/
+Backend/*.py[cod]
+Backend/.env
+Backend/.venv/
+
+# === Common ===
+*.log
+.DS_Store
+.env
+
