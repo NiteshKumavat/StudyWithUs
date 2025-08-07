@@ -7,6 +7,7 @@ import View from "./components/View";
 import Pomodoro from "./components/Pomodoro";
 import AuthForm from "./components/login";
 import ProtectedRoute from "./components/ProtectedRoute";
+import NotificationBell from "./components/NotificationBell";
 import "./App.css";
 
 const navItems = {
@@ -28,6 +29,11 @@ function Layout() {
     <div className="app-container">
       {showSidebar && <Sidebar items={navItems} />}
       <div className="main-content">
+        {showSidebar && (
+          <div style={{ display: "flex", justifyContent: "flex-end", padding: "1rem" }}>
+            <NotificationBell token={localStorage.getItem("token")} />
+          </div>
+        )}
         <Routes>
           <Route path="/" element={<AuthForm />} />
           <Route

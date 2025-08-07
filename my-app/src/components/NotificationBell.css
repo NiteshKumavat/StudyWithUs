@@ -1,0 +1,160 @@
+/* Container Styles */
+.notification-bell-container {
+  position: relative;
+  display: inline-block;
+}
+
+/* Bell Button Styles */
+.notification-bell-button {
+  background: none;
+  border: none;
+  padding: 8px;
+  border-radius: 50%;
+  cursor: pointer;
+  position: relative;
+  transition: background-color 0.2s;
+}
+
+.notification-bell-button:hover {
+  background-color: #f0f0f0;
+}
+
+.notification-bell-icon {
+  width: 24px;
+  height: 24px;
+  color: #333;
+}
+
+/* Badge Styles */
+.notification-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  background-color: #ff4d4f;
+  border-radius: 50%;
+  border: 1px solid white;
+}
+
+/* Dropdown Styles */
+.notification-dropdown {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  width: 350px;
+  max-height: 500px;
+  background-color: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.notification-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.notification-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.notification-close-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #999;
+}
+
+.notification-close-btn:hover {
+  color: #333;
+}
+
+/* List Styles */
+.notification-list {
+  overflow-y: auto;
+  max-height: 400px;
+}
+
+.notification-loading,
+.notification-error,
+.notification-empty {
+  padding: 16px;
+  text-align: center;
+  color: #666;
+}
+
+.notification-error {
+  color: #ff4d4f;
+}
+
+/* Notification Item Styles */
+.notification-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f5f5f5;
+  transition: background-color 0.2s;
+}
+
+.notification-item:hover {
+  background-color: #f9f9f9;
+}
+
+.notification-item-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.notification-type-icon {
+  margin-right: 8px;
+  font-size: 14px;
+}
+
+.notification-title {
+  flex-grow: 1;
+  font-size: 14px;
+}
+
+.notification-date {
+  font-size: 12px;
+  color: #999;
+}
+
+.notification-message {
+  font-size: 13px;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.notification-subject {
+  font-size: 12px;
+  color: #666;
+}
+
+/* Notification Type Colors */
+.notification-overdue {
+  border-left: 4px solid #ff4d4f;
+  background-color: #fff1f0;
+}
+
+.notification-due-today {
+  border-left: 4px solid #faad14;
+  background-color: #fffbe6;
+}
+
+.notification-due-tomorrow {
+  border-left: 4px solid #1890ff;
+  background-color: #e6f7ff;
+}
+
+.notification-default {
+  border-left: 4px solid #d9d9d9;
+}

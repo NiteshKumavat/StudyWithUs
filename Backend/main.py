@@ -3,7 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta
 import secrets
 from sqlalchemy import func
 
@@ -56,6 +56,9 @@ def create_token(user_id):
         algorithm="HS256"
     )
 
+    
+    
+
 # Registration 
 @app.route('/register', methods=['POST'])
 def register():
@@ -63,7 +66,7 @@ def register():
     if not data or not all(k in data for k in ('email', 'password', 'name')):
         return jsonify({"error": "Email, username, and password required"}), 400
 
-    if User.query.filter_by(email=data['email']).first() or User.query.filter_by(username=data['name']).first():
+    if User.query.filter_by(email=data['email']).first():
         return jsonify({"error": "Email or username already exists"}), 409
 
     hashed_password = generate_password_hash(data['password'])
@@ -174,7 +177,9 @@ def get_tasks_by_date(date):
         return jsonify({'error': 'Missing token'}), 401
 
     try:
+        print(token)
         decoded = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
+
         user_id = decoded['user_id']
     except jwt.InvalidTokenError:
         return jsonify({'error': 'Invalid token'}), 401
@@ -203,46 +208,95 @@ def get_tasks_by_date(date):
     return jsonify({"tasks": task_list})
 
 
-@app.route('/task/<int:task_id>', methods=['DELETE'])
-def delete_task(task_id):
-    token = request.headers.get('Authorization')
-    if not token:
-        return jsonify({'error': 'Missing token'}), 401
+@app.route('/notifications', methods=['GET'])
+def get_notifications():
+    # --- Step 1: Get and verify token ---
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Authorization header missing or invalid"}), 401
+
+    token = request.headers.get("Authorization")
+    if not token or not token.startswith("Bearer "):
+        return jsonify({"error": "Missing or invalid token"}), 401
 
     try:
-        decoded = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
-        user_id = decoded['user_id']
+        decoded = jwt.decode(token.split()[1], app.config['SECRET_KEY'], algorithms=["HS256"])
+        user_id = decoded["user_id"]
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Token expired"}), 401
     except jwt.InvalidTokenError:
-        return jsonify({'error': 'Invalid token'}), 401
+        return jsonify({"error": "Invalid token"}), 401
 
-    task = Task.query.filter_by(id=task_id, user_id=user_id).first()
-    if not task:
-        return jsonify({'error': 'Task not found'}), 404
+    # --- Step 2: Calculate date values ---
+    now = datetime.utcnow()
+    today = now.date()
+    tomorrow = today + timedelta(days=1)
 
-    db.session.delete(task)
-    db.session.commit()
-    return jsonify({'message': 'Task deleted successfully'}), 200
+    # --- Step 3: Query tasks ---
+    tasks = Task.query.filter(
+        Task.user_id == user_id,
+        Task.completed == False
+    ).all()
 
+    notifications = []
 
-@app.route('/task/<int:task_id>/complete', methods=['PUT'])
-def complete_task(task_id):
-    token = request.headers.get('Authorization')
-    if not token:
-        return jsonify({'error': 'Missing token'}), 401
+    # --- Step 4: Process each task ---
+    for task in tasks:
+        deadline = task.deadline.date()
+        days_diff = (deadline - today).days
 
-    try:
-        decoded = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
-        user_id = decoded['user_id']
-    except jwt.InvalidTokenError:
-        return jsonify({'error': 'Invalid token'}), 401
+        if deadline < today:
+            days_overdue = (today - deadline).days
+            notifications.append({
+                "title": task.title,
+                "subject": task.subject,
+                "message": f"⛔ Overdue by {days_overdue} day{'s' if days_overdue != 1 else ''}: {task.title}",
+                "type": "overdue",
+                "days_overdue": days_overdue,
+                "task_id": task.id,
+                "deadline": task.deadline.isoformat()
+            })
+        elif deadline == today:
+            notifications.append({
+                "title": task.title,
+                "subject": task.subject,
+                "message": f"⚠️ Due today: {task.title}",
+                "type": "due_today",
+                "task_id": task.id,
+                "deadline": task.deadline.isoformat()
+            })
+        elif deadline == tomorrow:
+            notifications.append({
+                "title": task.title,
+                "subject": task.subject,
+                "message": f"ℹ️ Due tomorrow: {task.title}",
+                "type": "due_tomorrow",
+                "task_id": task.id,
+                "deadline": task.deadline.isoformat()
+            })
+        elif 0 < days_diff <= 3:
+            notifications.append({
+                "title": task.title,
+                "subject": task.subject,
+                "message": f"ℹ️ Due in {days_diff} day{'s' if days_diff != 1 else ''}: {task.title}",
+                "type": "upcoming",
+                "days_remaining": days_diff,
+                "task_id": task.id,
+                "deadline": task.deadline.isoformat()
+            })
 
-    task = Task.query.filter_by(id=task_id, user_id=user_id).first()
-    if not task:
-        return jsonify({'error': 'Task not found'}), 404
+    # --- Step 5: Sort notifications ---
+    notifications.sort(key=lambda x: (
+        0 if x['type'] == 'overdue' else 
+        1 if x['type'] == 'due_today' else
+        2 if x['type'] == 'due_tomorrow' else
+        3,
+        x.get('days_overdue', float('inf')) if 'days_overdue' in x else x.get('days_remaining', float('inf'))
+    ))
 
-    task.completed = True
-    db.session.commit()
-    return jsonify({'message': 'Task marked as complete'}), 200
+    print(notifications)
+
+    return jsonify({"notifications": notifications}), 200
 
 @app.route('/api/tasks')
 def get_tasks():
@@ -288,4 +342,3 @@ def get_tasks():
 
 if __name__ == '__main__':
     app.run(debug=True, port=8000)
-
