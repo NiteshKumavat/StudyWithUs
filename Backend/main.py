@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
+import requests
 import jwt
 from datetime import datetime, timedelta
 import secrets
@@ -11,6 +12,7 @@ from sqlalchemy import func
 
 app = Flask(__name__)
 CORS(app)  
+TRIVIA_API_URL = "https://opentdb.com/api.php"
 
 app.config['SECRET_KEY'] = secrets.token_hex(16)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:admin@localhost:5432/students'
@@ -41,7 +43,7 @@ class Task(db.Model):
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
-# Initialize DB
+
 with app.app_context():
     db.create_all()
 
@@ -168,6 +170,36 @@ def add_goal():
 @app.route('/', methods=['GET'])
 def index():
     return jsonify({"message": "Flask API running"}), 200
+
+@app.route('/categories')
+def get_categories():
+    try:
+        response = requests.get("https://opentdb.com/api_category.php")
+        response.raise_for_status()
+        return jsonify(response.json())
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/quiz', methods=['GET'])
+def get_quiz():
+    params = {
+        'amount': request.args.get('amount', default=10, type=int),
+        'category': request.args.get('category', default='', type=str),
+        'difficulty': request.args.get('difficulty', default='', type=str),
+        'type': request.args.get('type', default='', type=str)
+    }
+    
+    try:
+        response = requests.get(TRIVIA_API_URL, params=params)
+        response.raise_for_status()
+        data = response.json()
+        
+        if data['response_code'] != 0:
+            return jsonify({"error": "No results found for the specified parameters"}), 404
+            
+        return jsonify(data)
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/task/<date>', methods=['GET'])

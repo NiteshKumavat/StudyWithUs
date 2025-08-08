@@ -8,6 +8,7 @@ import Pomodoro from "./components/Pomodoro";
 import AuthForm from "./components/login";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotificationBell from "./components/NotificationBell";
+import QuizApp from "./components/QuizApp";
 import "./App.css";
 
 const navItems = {
@@ -15,7 +16,8 @@ const navItems = {
   1: ["View Goal", "/view"],
   2: ["Goal Management", "/setGoals"],
   3: ["Pomodaro", "/timer"],
-  4: ["logout", "/"],
+  4 : ["Quiz", "/quiz"],
+  5: ["logout", "/"],
 };
 
 
@@ -65,6 +67,15 @@ function Layout() {
             element={
               <ProtectedRoute>
                 <Pomodoro />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/quiz"
+            element={
+              <ProtectedRoute>
+                <QuizApp />
               </ProtectedRoute>
             }
           />
