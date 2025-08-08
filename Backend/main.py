@@ -118,7 +118,7 @@ def dashboard():
     return jsonify(data)
 
 
-    
+
 
 
 @app.route('/task', methods=['POST'])
@@ -220,8 +220,6 @@ def get_tasks_by_date(date):
         parsed_date = datetime.strptime(date, "%Y-%m-%d").date()
     except ValueError:
         return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
-
-    # Query only tasks for the specific date and user
     tasks = Task.query.filter(
         Task.user_id == user_id,
         func.date(Task.deadline) == parsed_date
@@ -238,6 +236,48 @@ def get_tasks_by_date(date):
     ]
 
     return jsonify({"tasks": task_list})
+
+
+@app.route('/task/<int:task_id>', methods=['DELETE'])
+def delete_task(task_id):
+    token = request.headers.get('Authorization')
+    if not token:
+        return jsonify({'error': 'Missing token'}), 401
+
+    try:
+        decoded = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
+        user_id = decoded['user_id']
+    except jwt.InvalidTokenError:
+        return jsonify({'error': 'Invalid token'}), 401
+
+    task = Task.query.filter_by(id=task_id, user_id=user_id).first()
+    if not task:
+        return jsonify({'error': 'Task not found'}), 404
+
+    db.session.delete(task)
+    db.session.commit()
+    return jsonify({'message': 'Task deleted successfully'}), 200
+
+
+@app.route('/task/<int:task_id>/complete', methods=['PUT'])
+def complete_task(task_id):
+    token = request.headers.get('Authorization')
+    if not token:
+        return jsonify({'error': 'Missing token'}), 401
+
+    try:
+        decoded = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
+        user_id = decoded['user_id']
+    except jwt.InvalidTokenError:
+        return jsonify({'error': 'Invalid token'}), 401
+
+    task = Task.query.filter_by(id=task_id, user_id=user_id).first()
+    if not task:
+        return jsonify({'error': 'Task not found'}), 404
+
+    task.completed = True
+    db.session.commit()
+    return jsonify({'message': 'Task marked as complete'}), 200
 
 
 @app.route('/notifications', methods=['GET'])
