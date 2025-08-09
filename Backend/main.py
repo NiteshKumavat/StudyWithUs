@@ -42,6 +42,25 @@ class Task(db.Model):
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+    
+
+class PomodoroSession(db.Model):
+    __tablename__ = 'pomodoro_sessions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    session_type = db.Column(db.String(50), nullable=False)  # work or break
+    duration = db.Column(db.Integer, nullable=False)  # seconds
+    completed_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "session_type": self.session_type,
+            "duration": self.duration,
+            "completed_at": self.completed_at.isoformat()
+        }
 
 
 with app.app_context():
@@ -57,8 +76,6 @@ def create_token(user_id):
         app.config['SECRET_KEY'],
         algorithm="HS256"
     )
-
-    
     
 
 # Registration 
@@ -179,6 +196,60 @@ def get_categories():
         return jsonify(response.json())
     except requests.exceptions.RequestException as e:
         return jsonify({"error": str(e)}), 500
+    
+@app.route("/sessions", methods=["POST"])
+def save_session():
+    token = request.headers.get("Authorization")
+    if not token:
+        return jsonify({'error': 'Missing token'}), 401
+
+    try:
+        decoded = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
+        user_id = decoded['user_id']
+    except jwt.ExpiredSignatureError:
+        return jsonify({'error': 'Token expired'}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({'error': 'Invalid token'}), 401
+
+    data = request.json
+    session_type = data.get("session_type")
+    duration = data.get("duration")
+
+    if not session_type or not duration:
+        return jsonify({"error": "Missing session_type or duration"}), 400
+
+    session = PomodoroSession(
+        user_id=user_id,
+        session_type=session_type,
+        duration=duration
+    )
+    db.session.add(session)
+    db.session.commit()
+
+    return jsonify({"message": "Session saved", "session": session.to_dict()}), 201
+
+
+@app.route("/sessions", methods=["GET"])
+def get_sessions():
+    token = request.headers.get("Authorization")
+    token = token.split()[1]
+    if not token:
+        return jsonify({'error': 'Missing token'}), 401
+
+    try:
+        decoded = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
+        
+        user_id = decoded['user_id']
+    except jwt.ExpiredSignatureError:
+        return jsonify({'error': 'Token expired'}), 401
+    except jwt.InvalidTokenError:
+
+        return jsonify({'error': 'Invalid token'}), 401
+
+
+    sessions = PomodoroSession.query.filter_by(user_id=user_id).order_by(PomodoroSession.completed_at.desc()).all()
+
+    return jsonify([s.to_dict() for s in sessions])
 
 @app.route('/quiz', methods=['GET'])
 def get_quiz():
@@ -209,7 +280,6 @@ def get_tasks_by_date(date):
         return jsonify({'error': 'Missing token'}), 401
 
     try:
-        print(token)
         decoded = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
 
         user_id = decoded['user_id']
@@ -282,7 +352,6 @@ def complete_task(task_id):
 
 @app.route('/notifications', methods=['GET'])
 def get_notifications():
-    # --- Step 1: Get and verify token ---
     auth_header = request.headers.get('Authorization')
     if not auth_header or not auth_header.startswith("Bearer "):
         return jsonify({"error": "Authorization header missing or invalid"}), 401
@@ -299,12 +368,10 @@ def get_notifications():
     except jwt.InvalidTokenError:
         return jsonify({"error": "Invalid token"}), 401
 
-    # --- Step 2: Calculate date values ---
     now = datetime.utcnow()
     today = now.date()
     tomorrow = today + timedelta(days=1)
 
-    # --- Step 3: Query tasks ---
     tasks = Task.query.filter(
         Task.user_id == user_id,
         Task.completed == False
@@ -312,7 +379,6 @@ def get_notifications():
 
     notifications = []
 
-    # --- Step 4: Process each task ---
     for task in tasks:
         deadline = task.deadline.date()
         days_diff = (deadline - today).days
@@ -357,7 +423,6 @@ def get_notifications():
                 "deadline": task.deadline.isoformat()
             })
 
-    # --- Step 5: Sort notifications ---
     notifications.sort(key=lambda x: (
         0 if x['type'] == 'overdue' else 
         1 if x['type'] == 'due_today' else

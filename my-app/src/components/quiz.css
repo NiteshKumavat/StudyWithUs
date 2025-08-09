@@ -1,4 +1,3 @@
-/* quiz.css */
 * {
   margin: 0;
   padding: 0;
@@ -35,7 +34,6 @@ body {
   font-size: 2.2rem;
 }
 
-/* Form Styles */
 .quiz-form {
   text-align: left;
 }
@@ -95,7 +93,6 @@ body {
   cursor: not-allowed;
 }
 
-/* Subject Selection (kept for reference, though modified in component) */
 .subject-selection h2 {
   margin-bottom: 20px;
   color: #3f51b5;
@@ -122,7 +119,6 @@ body {
   background-color: #303f9f;
 }
 
-/* Question Section */
 .question-section {
   text-align: left;
 }
@@ -178,7 +174,6 @@ body {
   border-color: #f44336;
 }
 
-/* Feedback */
 .feedback {
   padding: 15px;
   border-radius: 8px;
@@ -197,7 +192,6 @@ body {
   color: #c62828;
 }
 
-/* Score Section */
 .score-section {
   text-align: center;
 }
@@ -236,7 +230,6 @@ body {
   background-color: #303f9f;
 }
 
-/* Error Message */
 .error-message {
   color: #c62828;
   background-color: #ffebee;
@@ -246,13 +239,12 @@ body {
   text-align: center;
 }
 
-/* Animations */
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
-/* Responsive Design */
 @media (max-width: 600px) {
   .quiz-app {
     padding: 20px;

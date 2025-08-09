@@ -86,7 +86,9 @@ const AuthForm = () => {
         console.log('Login successful:', data);
         navigate('/dashboard');
       } else {
+        localStorage.setItem('authToken', data.token);
         console.log('Registration successful:', data);
+        navigate('/dashboard');
         setIsLogin(true);
       }
 
