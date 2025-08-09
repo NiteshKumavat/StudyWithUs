@@ -32,6 +32,7 @@ function Layout() {
       {showSidebar && <Sidebar items={navItems} />}
       <div className="main-content">
         {showSidebar && (
+          
           <div style={{ display: "flex", justifyContent: "flex-end", padding: "1rem" }}>
             <NotificationBell token={localStorage.getItem("token")} />
           </div>

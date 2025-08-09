@@ -438,7 +438,7 @@ def get_notifications():
 @app.route('/api/tasks')
 def get_tasks():
     try:
-
+        
         token = request.headers.get('Authorization')
         if not token or not token.startswith('Bearer '):
             return jsonify({'error': 'Unauthorized'}), 401

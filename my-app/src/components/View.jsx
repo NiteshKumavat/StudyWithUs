@@ -15,6 +15,7 @@ export default function View() {
         />
         <TaskViewer selectedDate={selectedDate} />
       </div>
+      
     </div>
   );
 }

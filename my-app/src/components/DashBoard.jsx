@@ -17,6 +17,7 @@ const Dashboard = () => {
         setIsLoading(false);
         return;
       }
+      
 
       try {
         const response = await fetch('/dashboard', {

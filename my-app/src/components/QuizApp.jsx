@@ -9,6 +9,7 @@ const QuizApp = () => {
     type: "",
     amount: 10
   });
+  
   const [selectedQuestions, setSelectedQuestions] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);

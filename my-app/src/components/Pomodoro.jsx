@@ -15,6 +15,7 @@ export default function Pomodoro() {
 
   const saveSession = async (sessionType, duration) => {
     try {
+      
       const response = await fetch("/sessions", {
         method: "POST",
         headers: {
