@@ -22,8 +22,7 @@ const GoalManager = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
-    
-    // Date validation
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const enteredDate = new Date(values.deadline);
@@ -53,15 +52,13 @@ const GoalManager = () => {
         throw new Error(errorData.error || "Failed to create goal");
       }
 
-      // Reset form on success
       setValues({
         title: "",
         subject: "",
         description: "",
         deadline: ""
       });
-      
-      // Show success message (could use a toast instead)
+
       alert("Goal created successfully!");
       
     } catch (err) {

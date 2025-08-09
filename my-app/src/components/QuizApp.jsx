@@ -1,4 +1,3 @@
-// src/QuizApp.js
 import React, { useState, useEffect } from "react";
 import "./quiz.css";
 
@@ -19,7 +18,6 @@ const QuizApp = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Fetch categories from Flask backend
   useEffect(() => {
     const fetchCategories = async () => {
       setIsLoading(true);
@@ -54,7 +52,6 @@ const QuizApp = () => {
     setError(null);
 
     try {
-      // Build query string from quizParams
       const queryParams = new URLSearchParams();
       if (quizParams.amount) queryParams.append('amount', quizParams.amount);
       if (quizParams.category) queryParams.append('category', quizParams.category);
@@ -97,7 +94,6 @@ const QuizApp = () => {
     }
   };
 
-  // Decode HTML entities from API
   const decodeHTMLEntities = (text) => {
     const textarea = document.createElement("textarea");
     textarea.innerHTML = text;

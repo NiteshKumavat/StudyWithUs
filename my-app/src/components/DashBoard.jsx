@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import GradesBarChart from './charts/GradesBarChart';
-
+import "./dashboard.css"
 const Dashboard = () => {
   const [subjects, setSubjects] = useState([]);
   const [timetable, setTimetable] = useState([]);
@@ -19,7 +19,7 @@ const Dashboard = () => {
       }
 
       try {
-        const response = await fetch('http://localhost:8000/dashboard', {
+        const response = await fetch('/dashboard', {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -75,7 +75,6 @@ const Dashboard = () => {
           }
         }
 
-        // 🧠 Step 4: Assign default time (looping if more subjects than times)
         const finalTimetable = selectedSubjects.map((subject, index) => ({
           subject,
           time: defaultTimes[index % defaultTimes.length]
