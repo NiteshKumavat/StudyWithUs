@@ -10,6 +10,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     const fetchDashboardData = async () => {
+      document.title = "dashboard"
       const token = localStorage.getItem("authToken");
 
       if (!token) {

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import "./Pomodaro.css";
 
 export default function Pomodoro() {
+  document.title = "Pomodaro"
   const WORK_TIME = 25 * 60;
   const BREAK_TIME = 5 * 60;
 

@@ -43,6 +43,7 @@ function Layout() {
             path="/dashboard"
             element={
               <ProtectedRoute>
+                
                 <Dashboard />
               </ProtectedRoute>
             }

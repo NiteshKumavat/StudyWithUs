@@ -4,6 +4,7 @@ import TaskViewer from "./goals/TaskViewer";
 
 export default function View() {
   const [selectedDate, setSelectedDate] = useState(new Date());
+  document.title = "View Goals";
 
   return (
     <div className="app">

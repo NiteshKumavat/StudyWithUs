@@ -2,6 +2,7 @@ import "./Goals.css";
 import { useState } from "react";
 
 const GoalManager = () => {
+  document.title = "Goal Manager"
   const [values, setValues] = useState({
     title: "",
     subject: "",

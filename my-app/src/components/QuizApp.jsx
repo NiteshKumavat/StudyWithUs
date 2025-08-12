@@ -20,6 +20,7 @@ const QuizApp = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    document.title = "Quiz"
     const fetchCategories = async () => {
       setIsLoading(true);
       try {
