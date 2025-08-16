@@ -7,16 +7,18 @@ import jwt
 from datetime import datetime, timedelta
 import secrets
 from sqlalchemy import func
-
-
+from functools import wraps
 
 app = Flask(__name__)
-CORS(app)  
+CORS(app)
 TRIVIA_API_URL = "https://opentdb.com/api.php"
 
-app.config['SECRET_KEY'] = secrets.token_hex(16)
+
+app.config['SECRET_KEY'] = secrets.token_hex(32)  # 32 bytes for better security
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:admin@localhost:5432/students'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['JWT_EXPIRATION_HOURS'] = 5
+
 db = SQLAlchemy(app)
 
 # Models
@@ -26,7 +28,6 @@ class User(db.Model):
     email = db.Column(db.String(100), unique=True, nullable=False)
     username = db.Column(db.String(50), unique=True, nullable=False)
     password = db.Column(db.Text, nullable=False)
-
 
 class Task(db.Model):
     __tablename__ = 'tasks'
@@ -42,15 +43,13 @@ class Task(db.Model):
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
-    
 
 class PomodoroSession(db.Model):
     __tablename__ = 'pomodoro_sessions'
-
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, nullable=False)
-    session_type = db.Column(db.String(50), nullable=False)  # work or break
-    duration = db.Column(db.Integer, nullable=False)  # seconds
+    session_type = db.Column(db.String(50), nullable=False)
+    duration = db.Column(db.Integer, nullable=False)
     completed_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -62,7 +61,6 @@ class PomodoroSession(db.Model):
             "completed_at": self.completed_at.isoformat()
         }
 
-
 with app.app_context():
     db.create_all()
 
@@ -71,103 +69,115 @@ def create_token(user_id):
     return jwt.encode(
         {
             "user_id": user_id,
-            "exp": datetime.utcnow() + timedelta(hours=5)
+            "exp": datetime.utcnow() + timedelta(hours=app.config['JWT_EXPIRATION_HOURS'])
         },
         app.config['SECRET_KEY'],
         algorithm="HS256"
     )
-    
 
-# Registration 
+def validate_date(date_str):
+    try:
+        return datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return None
+
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get('Authorization')
+        print(token)
+        if not token :
+            return jsonify({'error': 'Missing or invalid token'}), 401
+        
+        try:
+            decoded = jwt.decode(token.split()[1], app.config['SECRET_KEY'], algorithms=["HS256"])
+            kwargs['user_id'] = decoded['user_id']
+        except jwt.ExpiredSignatureError:
+            return jsonify({'error': 'Token expired'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'error': 'Invalid token'}), 401
+        
+        return f(*args, **kwargs)
+    return decorated
+
+def validate_json(*required_fields):
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if not request.is_json:
+                return jsonify({'error': 'Expected JSON data'}), 415
+            
+            data = request.get_json()
+            missing_fields = [field for field in required_fields if field not in data]
+            if missing_fields:
+                return jsonify({'error': f'Missing required fields: {", ".join(missing_fields)}'}), 400
+            
+            kwargs['data'] = data
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
+
+
 @app.route('/register', methods=['POST'])
-def register():
-    data = request.get_json()
-    if not data or not all(k in data for k in ('email', 'password', 'name')):
-        return jsonify({"error": "Email, username, and password required"}), 400
+@validate_json('email', 'password', 'name')
+def register(data):
+    try:
+        if User.query.filter_by(email=data['email']).first():
+            return jsonify({"error": "Email already exists"}), 409
 
-    if User.query.filter_by(email=data['email']).first():
-        return jsonify({"error": "Email or username already exists"}), 409
+        hashed_password = generate_password_hash(data['password'])
+        new_user = User(
+            email=data['email'],
+            username=data['name'],
+            password=hashed_password
+        )
 
-    hashed_password = generate_password_hash(data['password'])
-    new_user = User(email=data['email'], username=data['name'], password=hashed_password)
+        db.session.add(new_user)
+        db.session.commit()
 
-    db.session.add(new_user)
-    db.session.commit()
+        token = create_token(new_user.id)
+        return jsonify({"token": token}), 201
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Registration error: {str(e)}")
+        return jsonify({"error": "Registration failed"}), 500
 
-    token = create_token(new_user.id)
-    return jsonify({"token": token}), 201
-
-# Login 
 @app.route('/login', methods=['POST'])
-def login():
-    data = request.get_json()
-    user = User.query.filter_by(email=data.get('email')).first()
-    if user and check_password_hash(user.password, data.get('password')):
-        token = create_token(user.id)
-        return jsonify({"token": token}), 200
-    return jsonify({"error": "Invalid credentials"}), 401
-
+@validate_json('email', 'password')
+def login(data):
+    try:
+        user = User.query.filter_by(email=data['email']).first()
+        if user and check_password_hash(user.password, data['password']):
+            token = create_token(user.id)
+            return jsonify({"token": token}), 200
+        return jsonify({"error": "Invalid credentials"}), 401
+    except Exception as e:
+        app.logger.error(f"Login error: {str(e)}")
+        return jsonify({"error": "Login failed"}), 500
 
 @app.route("/dashboard", methods=["GET"])
-def dashboard():
-    data = {
-        "subjects" : [],
-    }
-    token = request.headers.get("Authorization")
-    if not token or not token.startswith("Bearer "):
-        return jsonify({"error": "Missing or invalid token"}), 401
-
+@token_required
+def dashboard(user_id):
     try:
-        decoded = jwt.decode(token.split()[1], app.config['SECRET_KEY'], algorithms=["HS256"])
-        user_id = decoded["user_id"]
-    except jwt.ExpiredSignatureError:
-        return jsonify({"error": "Token expired"}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({"error": "Invalid token"}), 401
-
-    tasks = Task.query.filter_by(user_id=user_id).all()
-    dict_tasks = [task.to_dict() for task in tasks]
-
-    for task in dict_tasks :
-        data["subjects"].append([task["subject"], task["completed"], task["title"]])
-
-
-    return jsonify(data)
-
-
-
-
+        tasks = Task.query.filter_by(user_id=user_id).all()
+        subjects = [[task.subject, task.completed, task.title] for task in tasks]
+        return jsonify({"subjects": subjects})
+    except Exception as e:
+        app.logger.error(f"Dashboard error: {str(e)}")
+        return jsonify({"error": "Failed to fetch dashboard data"}), 500
 
 @app.route('/task', methods=['POST'])
-def add_goal():
-    if not request.is_json:
-        return jsonify({'error': 'Expected JSON data'}), 415
-
-    data = request.get_json()
-    required_fields = ['title', 'subject', 'deadline']
-    if any(not data.get(field) for field in required_fields):
-        return jsonify({'error': 'Missing required fields'}), 400
-
-    token = request.headers.get('Authorization')
-    if not token:
-        return jsonify({'error': 'Missing token'}), 401
-
+@token_required
+@validate_json('title', 'subject', 'deadline')
+def add_goal(user_id, data):
     try:
-        decoded = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
-        user_id = decoded['user_id']
-    except jwt.ExpiredSignatureError:
-        return jsonify({'error': 'Token expired'}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({'error': 'Invalid token'}), 401
-
-    try:
-        deadline_date = datetime.strptime(data['deadline'], '%Y-%m-%d')
-        if deadline_date.date() < datetime.utcnow().date():
+        deadline_date = validate_date(data['deadline'])
+        if not deadline_date:
+            return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+        
+        if deadline_date < datetime.utcnow().date():
             return jsonify({'error': 'Deadline cannot be in the past'}), 400
-    except ValueError:
-        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
 
-    try:
         new_task = Task(
             title=data['title'],
             subject=data['subject'],
@@ -175,307 +185,242 @@ def add_goal():
             deadline=deadline_date,
             user_id=user_id
         )
+        
         db.session.add(new_task)
         db.session.commit()
         return jsonify({'message': 'Goal added', 'goal_id': new_task.id}), 201
     except Exception as e:
         db.session.rollback()
-        app.logger.error(f"Error adding goal: {str(e)}")
+        app.logger.error(f"Add goal error: {str(e)}")
         return jsonify({'error': 'Failed to create goal'}), 500
 
-
-@app.route('/', methods=['GET'])
-def index():
-    return jsonify({"message": "Flask API running"}), 200
-
-@app.route('/categories')
+@app.route('/categories', methods=['GET'])
 def get_categories():
     try:
-        response = requests.get("https://opentdb.com/api_category.php")
+        response = requests.get("https://opentdb.com/api_category.php", timeout=5)
         response.raise_for_status()
         return jsonify(response.json())
     except requests.exceptions.RequestException as e:
-        return jsonify({"error": str(e)}), 500
-    
+        app.logger.error(f"Categories API error: {str(e)}")
+        return jsonify({"error": "Failed to fetch categories"}), 500
+
 @app.route("/sessions", methods=["POST"])
-def save_session():
-    token = request.headers.get("Authorization")
-    if not token:
-        return jsonify({'error': 'Missing token'}), 401
-
+@token_required
+@validate_json('session_type', 'duration')
+def save_session(user_id, data):
     try:
-        decoded = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
-        user_id = decoded['user_id']
-    except jwt.ExpiredSignatureError:
-        return jsonify({'error': 'Token expired'}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({'error': 'Invalid token'}), 401
-
-    data = request.json
-    session_type = data.get("session_type")
-    duration = data.get("duration")
-
-    if not session_type or not duration:
-        return jsonify({"error": "Missing session_type or duration"}), 400
-
-    session = PomodoroSession(
-        user_id=user_id,
-        session_type=session_type,
-        duration=duration
-    )
-    db.session.add(session)
-    db.session.commit()
-
-    return jsonify({"message": "Session saved", "session": session.to_dict()}), 201
-
+        session = PomodoroSession(
+            user_id=user_id,
+            session_type=data['session_type'],
+            duration=data['duration']
+        )
+        db.session.add(session)
+        db.session.commit()
+        return jsonify({"message": "Session saved", "session": session.to_dict()}), 201
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Save session error: {str(e)}")
+        return jsonify({"error": "Failed to save session"}), 500
 
 @app.route("/sessions", methods=["GET"])
-def get_sessions():
-    token = request.headers.get("Authorization")
-    token = token.split()[1]
-    if not token:
-        return jsonify({'error': 'Missing token'}), 401
-
+@token_required
+def get_sessions(user_id):
     try:
-        decoded = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
-        
-        user_id = decoded['user_id']
-    except jwt.ExpiredSignatureError:
-        return jsonify({'error': 'Token expired'}), 401
-    except jwt.InvalidTokenError:
-
-        return jsonify({'error': 'Invalid token'}), 401
-
-
-    sessions = PomodoroSession.query.filter_by(user_id=user_id).order_by(PomodoroSession.completed_at.desc()).all()
-
-    return jsonify([s.to_dict() for s in sessions])
+        sessions = PomodoroSession.query.filter_by(user_id=user_id)\
+            .order_by(PomodoroSession.completed_at.desc()).all()
+        return jsonify([s.to_dict() for s in sessions])
+    except Exception as e:
+        app.logger.error(f"Get sessions error: {str(e)}")
+        return jsonify({"error": "Failed to fetch sessions"}), 500
 
 @app.route('/quiz', methods=['GET'])
 def get_quiz():
-    params = {
-        'amount': request.args.get('amount', default=10, type=int),
-        'category': request.args.get('category', default='', type=str),
-        'difficulty': request.args.get('difficulty', default='', type=str),
-        'type': request.args.get('type', default='', type=str)
-    }
-    
     try:
-        response = requests.get(TRIVIA_API_URL, params=params)
+        params = {
+            'amount': request.args.get('amount', default=10, type=int),
+            'category': request.args.get('category', default='', type=str),
+            'difficulty': request.args.get('difficulty', default='', type=str),
+            'type': request.args.get('type', default='', type=str)
+        }
+        
+        response = requests.get(TRIVIA_API_URL, params=params, timeout=5)
         response.raise_for_status()
         data = response.json()
         
         if data['response_code'] != 0:
-            return jsonify({"error": "No results found for the specified parameters"}), 404
+            return jsonify({"error": "No results found"}), 404
             
         return jsonify(data)
     except requests.exceptions.RequestException as e:
-        return jsonify({"error": str(e)}), 500
-
+        app.logger.error(f"Quiz API error: {str(e)}")
+        return jsonify({"error": "Failed to fetch quiz"}), 500
 
 @app.route('/task/<date>', methods=['GET'])
-def get_tasks_by_date(date):
-    token = request.headers.get('Authorization')
-    if not token:
-        return jsonify({'error': 'Missing token'}), 401
-
+@token_required
+def get_tasks_by_date(user_id, date):
     try:
-        decoded = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
+        parsed_date = validate_date(date)
+        if not parsed_date:
+            return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
 
-        user_id = decoded['user_id']
-    except jwt.InvalidTokenError:
-        return jsonify({'error': 'Invalid token'}), 401
+        tasks = Task.query.filter(
+            Task.user_id == user_id,
+            func.date(Task.deadline) == parsed_date
+        ).all()
 
-    try:
-        parsed_date = datetime.strptime(date, "%Y-%m-%d").date()
-    except ValueError:
-        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
-    tasks = Task.query.filter(
-        Task.user_id == user_id,
-        func.date(Task.deadline) == parsed_date
-    ).all()
+        task_list = [
+            {
+                "id": t.id,
+                "text": t.title,
+                "completed": t.completed,
+                "deadline": t.deadline.isoformat()
+            }
+            for t in tasks
+        ]
 
-    task_list = [
-        {
-            "id": t.id,
-            "text": t.title,
-            "completed": t.completed,
-            "deadline": t.deadline.isoformat()  # Full ISO format including time if needed
-        }
-        for t in tasks
-    ]
-
-    return jsonify({"tasks": task_list})
-
+        return jsonify({"tasks": task_list})
+    except Exception as e:
+        app.logger.error(f"Get tasks by date error: {str(e)}")
+        return jsonify({"error": "Failed to fetch tasks"}), 500
 
 @app.route('/task/<int:task_id>', methods=['DELETE'])
-def delete_task(task_id):
-    token = request.headers.get('Authorization')
-    if not token:
-        return jsonify({'error': 'Missing token'}), 401
-
+@token_required
+def delete_task(user_id, task_id):
     try:
-        decoded = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
-        user_id = decoded['user_id']
-    except jwt.InvalidTokenError:
-        return jsonify({'error': 'Invalid token'}), 401
+        task = Task.query.filter_by(id=task_id, user_id=user_id).first()
+        if not task:
+            return jsonify({'error': 'Task not found'}), 404
 
-    task = Task.query.filter_by(id=task_id, user_id=user_id).first()
-    if not task:
-        return jsonify({'error': 'Task not found'}), 404
-
-    db.session.delete(task)
-    db.session.commit()
-    return jsonify({'message': 'Task deleted successfully'}), 200
-
+        db.session.delete(task)
+        db.session.commit()
+        return jsonify({'message': 'Task deleted successfully'}), 200
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Delete task error: {str(e)}")
+        return jsonify({"error": "Failed to delete task"}), 500
 
 @app.route('/task/<int:task_id>/complete', methods=['PUT'])
-def complete_task(task_id):
-    token = request.headers.get('Authorization')
-    if not token:
-        return jsonify({'error': 'Missing token'}), 401
-
+@token_required
+def complete_task(user_id, task_id):
     try:
-        decoded = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
-        user_id = decoded['user_id']
-    except jwt.InvalidTokenError:
-        return jsonify({'error': 'Invalid token'}), 401
+        task = Task.query.filter_by(id=task_id, user_id=user_id).first()
+        if not task:
+            return jsonify({'error': 'Task not found'}), 404
 
-    task = Task.query.filter_by(id=task_id, user_id=user_id).first()
-    if not task:
-        return jsonify({'error': 'Task not found'}), 404
-
-    task.completed = True
-    db.session.commit()
-    return jsonify({'message': 'Task marked as complete'}), 200
-
+        task.completed = True
+        db.session.commit()
+        return jsonify({'message': 'Task marked as complete'}), 200
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Complete task error: {str(e)}")
+        return jsonify({"error": "Failed to complete task"}), 500
 
 @app.route('/notifications', methods=['GET'])
-def get_notifications():
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return jsonify({"error": "Authorization header missing or invalid"}), 401
-
-    token = request.headers.get("Authorization")
-    if not token or not token.startswith("Bearer "):
-        return jsonify({"error": "Missing or invalid token"}), 401
-
+@token_required
+def get_notifications(user_id):
     try:
-        decoded = jwt.decode(token.split()[1], app.config['SECRET_KEY'], algorithms=["HS256"])
-        user_id = decoded["user_id"]
-    except jwt.ExpiredSignatureError:
-        return jsonify({"error": "Token expired"}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({"error": "Invalid token"}), 401
+        today = datetime.utcnow().date()
+        tomorrow = today + timedelta(days=1)
 
-    now = datetime.utcnow()
-    today = now.date()
-    tomorrow = today + timedelta(days=1)
+        tasks = Task.query.filter(
+            Task.user_id == user_id,
+            Task.completed == False
+        ).all()
 
-    tasks = Task.query.filter(
-        Task.user_id == user_id,
-        Task.completed == False
-    ).all()
+        notifications = []
 
-    notifications = []
+        for task in tasks:
+            deadline = task.deadline.date()
+            days_diff = (deadline - today).days
 
-    for task in tasks:
-        deadline = task.deadline.date()
-        days_diff = (deadline - today).days
+            if deadline < today:
+                days_overdue = (today - deadline).days
+                notifications.append({
+                    "title": task.title,
+                    "subject": task.subject,
+                    "message": f"⛔ Overdue by {days_overdue} day{'s' if days_overdue != 1 else ''}: {task.title}",
+                    "type": "overdue",
+                    "days_overdue": days_overdue,
+                    "task_id": task.id,
+                    "deadline": task.deadline.isoformat()
+                })
+            elif deadline == today:
+                notifications.append({
+                    "title": task.title,
+                    "subject": task.subject,
+                    "message": f"⚠️ Due today: {task.title}",
+                    "type": "due_today",
+                    "task_id": task.id,
+                    "deadline": task.deadline.isoformat()
+                })
+            elif deadline == tomorrow:
+                notifications.append({
+                    "title": task.title,
+                    "subject": task.subject,
+                    "message": f"ℹ️ Due tomorrow: {task.title}",
+                    "type": "due_tomorrow",
+                    "task_id": task.id,
+                    "deadline": task.deadline.isoformat()
+                })
+            elif 0 < days_diff <= 3:
+                notifications.append({
+                    "title": task.title,
+                    "subject": task.subject,
+                    "message": f"ℹ️ Due in {days_diff} day{'s' if days_diff != 1 else ''}: {task.title}",
+                    "type": "upcoming",
+                    "days_remaining": days_diff,
+                    "task_id": task.id,
+                    "deadline": task.deadline.isoformat()
+                })
 
-        if deadline < today:
-            days_overdue = (today - deadline).days
-            notifications.append({
-                "title": task.title,
-                "subject": task.subject,
-                "message": f"⛔ Overdue by {days_overdue} day{'s' if days_overdue != 1 else ''}: {task.title}",
-                "type": "overdue",
-                "days_overdue": days_overdue,
-                "task_id": task.id,
-                "deadline": task.deadline.isoformat()
-            })
-        elif deadline == today:
-            notifications.append({
-                "title": task.title,
-                "subject": task.subject,
-                "message": f"⚠️ Due today: {task.title}",
-                "type": "due_today",
-                "task_id": task.id,
-                "deadline": task.deadline.isoformat()
-            })
-        elif deadline == tomorrow:
-            notifications.append({
-                "title": task.title,
-                "subject": task.subject,
-                "message": f"ℹ️ Due tomorrow: {task.title}",
-                "type": "due_tomorrow",
-                "task_id": task.id,
-                "deadline": task.deadline.isoformat()
-            })
-        elif 0 < days_diff <= 3:
-            notifications.append({
-                "title": task.title,
-                "subject": task.subject,
-                "message": f"ℹ️ Due in {days_diff} day{'s' if days_diff != 1 else ''}: {task.title}",
-                "type": "upcoming",
-                "days_remaining": days_diff,
-                "task_id": task.id,
-                "deadline": task.deadline.isoformat()
-            })
+        notifications.sort(key=lambda x: (
+            0 if x['type'] == 'overdue' else 
+            1 if x['type'] == 'due_today' else
+            2 if x['type'] == 'due_tomorrow' else 3,
+            x.get('days_overdue', float('inf')) if 'days_overdue' in x else x.get('days_remaining', float('inf'))
+        ))
 
-    notifications.sort(key=lambda x: (
-        0 if x['type'] == 'overdue' else 
-        1 if x['type'] == 'due_today' else
-        2 if x['type'] == 'due_tomorrow' else
-        3,
-        x.get('days_overdue', float('inf')) if 'days_overdue' in x else x.get('days_remaining', float('inf'))
-    ))
+        return jsonify({"notifications": notifications}), 200
+    except Exception as e:
+        app.logger.error(f"Get notifications error: {str(e)}")
+        return jsonify({"error": "Failed to fetch notifications"}), 500
 
-    print(notifications)
-
-    return jsonify({"notifications": notifications}), 200
-
-@app.route('/api/tasks')
-def get_tasks():
+@app.route('/api/tasks', methods=['GET'])
+@token_required
+def get_tasks(user_id):
     try:
-        
-        token = request.headers.get('Authorization')
-        if not token or not token.startswith('Bearer '):
-            return jsonify({'error': 'Unauthorized'}), 401
-            
-        try:
-            decoded = jwt.decode(token.split()[1], app.config['SECRET_KEY'], algorithms=["HS256"])
-            user_id = decoded['user_id']
-        except:
-            return jsonify({'error': 'Invalid token'}), 401
-
         start_date = request.args.get('start')
         end_date = request.args.get('end')
 
         query = Task.query.filter_by(user_id=user_id)
         
         if start_date:
-            query = query.filter(Task.deadline >= datetime.fromisoformat(start_date))
+            start_date = validate_date(start_date)
+            if not start_date:
+                return jsonify({'error': 'Invalid start date format'}), 400
+            query = query.filter(Task.deadline >= start_date)
+            
         if end_date:
-            query = query.filter(Task.deadline <= datetime.fromisoformat(end_date))
+            end_date = validate_date(end_date)
+            if not end_date:
+                return jsonify({'error': 'Invalid end date format'}), 400
+            query = query.filter(Task.deadline <= end_date)
             
         tasks = query.all()
 
-        tasks_data = []
-        for task in tasks:
-            tasks_data.append({
-                'id': task.id,
-                'title': task.title,
-                'subject': task.subject,
-                'completed': task.completed,
-                'deadline': task.deadline.isoformat() if task.deadline else None,
-                'created_at': task.created_at.isoformat()
-            })
-            
-        return jsonify(tasks_data)
+        tasks_data = [{
+            'id': task.id,
+            'title': task.title,
+            'subject': task.subject,
+            'completed': task.completed,
+            'deadline': task.deadline.isoformat(),
+            'created_at': task.created_at.isoformat()
+        } for task in tasks]
         
+        return jsonify(tasks_data)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.error(f"Get tasks error: {str(e)}")
+        return jsonify({'error': 'Failed to fetch tasks'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=8000)

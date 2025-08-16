@@ -10,10 +10,11 @@ export default function TaskViewer({ selectedDate }) {
     const fetchTasks = async () => {
       try {
         const token = localStorage.getItem("authToken");
+        console.log(token)
         const dateKey = format(selectedDate, "yyyy-MM-dd");
         const res = await fetch(`/task/${dateKey}`, {
           headers: {
-            Authorization: token
+            Authorization: `Bearer ${token}`
           }
         });
         const data = await res.json();
@@ -38,7 +39,7 @@ export default function TaskViewer({ selectedDate }) {
       const res = await fetch(`/task/${taskId}/complete`, {
         method: "PUT",
         headers: {
-          Authorization: token,
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json"
         }
       });
@@ -67,7 +68,7 @@ export default function TaskViewer({ selectedDate }) {
       const res = await fetch(`/task/${taskId}`, {
         method: "DELETE",
         headers: {
-          Authorization: token
+          Authorization: `Bearer ${token}`
         }
       });
       
