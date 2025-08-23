@@ -19,7 +19,7 @@ TRIVIA_API_URL = "https://opentdb.com/api.php"
 
 
 app.config['SECRET_KEY'] = secrets.token_hex(32)  
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL').replace('postgres://', 'postgresql://')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_EXPIRATION_HOURS'] = 5
 
