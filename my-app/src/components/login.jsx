@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'; // <-- import navigate
 import "./login.css";
 
 const AuthForm = () => {
+  document.title = "Login/Register - MyApp";
   const navigate = useNavigate("/dashboard"); 
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({
