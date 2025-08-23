@@ -21,7 +21,7 @@ const Dashboard = () => {
       
 
       try {
-        const response = await fetch('/dashboard', {
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/dashboard`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },

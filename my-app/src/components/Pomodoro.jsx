@@ -16,8 +16,7 @@ export default function Pomodoro() {
 
   const saveSession = async (sessionType, duration) => {
     try {
-      
-      const response = await fetch("/sessions", {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/sessions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -40,7 +39,7 @@ export default function Pomodoro() {
 
   const fetchSessions = async () => {
     try {
-      const response = await fetch("/sessions", {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/sessions`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

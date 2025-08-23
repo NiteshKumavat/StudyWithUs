@@ -38,8 +38,8 @@ const GoalManager = () => {
     try {
       const token = localStorage.getItem("authToken");
       if (!token) throw new Error("Authentication required");
-      
-      const response = await fetch("/task", {
+
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/task`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

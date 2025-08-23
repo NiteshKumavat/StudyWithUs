@@ -15,7 +15,7 @@ const NotificationBell = () => {
     setError(null);
     
     try {
-      const response = await fetch('/notifications', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/notifications`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

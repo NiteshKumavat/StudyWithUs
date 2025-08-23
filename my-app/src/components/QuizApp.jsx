@@ -24,7 +24,7 @@ const QuizApp = () => {
     const fetchCategories = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch("/categories");
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/categories`);
         if (!response.ok) {
           throw new Error('Failed to fetch categories');
         }
@@ -60,7 +60,7 @@ const QuizApp = () => {
       if (quizParams.difficulty) queryParams.append('difficulty', quizParams.difficulty);
       if (quizParams.type) queryParams.append('type', quizParams.type);
 
-      const response = await fetch(`/quiz?${queryParams.toString()}`);
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/quiz?${queryParams.toString()}`);
       if (!response.ok) {
         throw new Error('Failed to fetch questions');
       }

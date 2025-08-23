@@ -63,7 +63,8 @@ const AuthForm = () => {
 
     try {
       const endpoint = isLogin ? "/login" : "/register";
-      const response = await fetch(endpoint, {
+      console.log(process.env.REACT_APP_API_URL)
+      const response = await fetch(`${process.env.REACT_APP_API_URL}${endpoint}`, {
         method: "POST",
         headers: {
           'Content-Type': 'application/json'

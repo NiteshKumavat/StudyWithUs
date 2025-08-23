@@ -12,7 +12,7 @@ export default function TaskViewer({ selectedDate }) {
         const token = localStorage.getItem("authToken");
         console.log(token)
         const dateKey = format(selectedDate, "yyyy-MM-dd");
-        const res = await fetch(`/task/${dateKey}`, {
+        const res = await fetch(`${process.env.REACT_APP_API_URL}/task/${dateKey}`, {
           headers: {
             Authorization: `Bearer ${token}`
           }
@@ -36,7 +36,7 @@ export default function TaskViewer({ selectedDate }) {
   const handleComplete = async (taskId) => {
     try {
       const token = localStorage.getItem("authToken");
-      const res = await fetch(`/task/${taskId}/complete`, {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/task/${taskId}/complete`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -65,7 +65,7 @@ export default function TaskViewer({ selectedDate }) {
   const handleDelete = async (taskId, deadline) => {
     try {
       const token = localStorage.getItem("authToken");
-      const res = await fetch(`/task/${taskId}`, {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/task/${taskId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`
