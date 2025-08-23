@@ -8,14 +8,18 @@ from datetime import datetime, timedelta
 import secrets
 from sqlalchemy import func
 from functools import wraps
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 TRIVIA_API_URL = "https://opentdb.com/api.php"
 
 
-app.config['SECRET_KEY'] = secrets.token_hex(32)  # 32 bytes for better security
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:admin@localhost:5432/students'
+app.config['SECRET_KEY'] = secrets.token_hex(32)  
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_EXPIRATION_HOURS'] = 5
 
